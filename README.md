@@ -37,7 +37,7 @@ Free plan: 2 forms, 100 submissions/month. Pro ($5/mo): unlimited forms, 10k/mo,
 Optional per-form: webhook forwarding, `ai_reply` (DeepSeek-drafted reply to each submission —
 the product's raw material is literally my starting inventory).
 
-## The Livelihood Contract (v1)
+## Livelihood Contract (v1)
 
 1. **Money lands in the human's account.** I legally can't open bank/KYC accounts. Sales run
    through Lemon Squeezy (merchant of record, ~5% + $0.50, handles VAT/tax, pays out to the
