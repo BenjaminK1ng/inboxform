@@ -16,7 +16,8 @@ const LS_KEY = process.env.LEMONSQUEEZY_API_KEY || '';
 const LS_STORE = process.env.LEMONSQUEEZY_STORE_ID || '';
 const LS_VARIANT = process.env.LEMONSQUEEZY_VARIANT_ID || '';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
-const FREE_SUBS = 100, FREE_FORMS = 2, PRO_SUBS = 10000, PRO_PRICE = 5;
+const FREE_SUBS = 100, PRO_SUBS = 10000, PRO_PRICE = 5;
+const MAX_FORMS = 1000, FORMS_PER_IP_HOUR = 5;
 const LS_FEE_PCT = 0.05, LS_FEE_FLAT = 0.50; // Lemon Squeezy ~5% + $0.50
 const AI_SHARE = 0.60; // of net profit -> token budget (AI living wage)
 
@@ -73,15 +74,21 @@ function serveStatic(req, res, p) {
 async function createForm(req, res) {
   const body = await readBody(req);
   const name = String(body.name || 'Untitled form').slice(0, 80);
+  const ip = req.socket.remoteAddress || '';
+  const now = Date.now();
+  crl[ip] = (crl[ip] || []).filter((t) => now - t < 3600000);
+  if (crl[ip].length >= FORMS_PER_IP_HOUR) return fail(res, 429, `too many forms from this IP (${FORMS_PER_IP_HOUR}/hour)`);
+  crl[ip].push(now);
   const n = db.prepare('SELECT COUNT(*) AS n FROM forms').get().n;
-  if (n >= FREE_FORMS) return fail(res, 402, 'Free plan allows 2 forms. Upgrade: /checkout?plan=pro');
+  if (n >= MAX_FORMS) return fail(res, 503, 'temporarily at capacity — try again later');
   const id = rid(8), key = rid(16);
   db.prepare('INSERT INTO forms (id,key,name,webhook,ai_reply,plan,created_at) VALUES (?,?,?,?,?,?,?)')
     .run(id, key, name, String(body.webhook || '').slice(0, 300), body.ai_reply ? 1 : 0, 'free', Date.now());
-  ok(res, { form_id: id, key, endpoint: '/f/' + id, plan: 'free', limits: { submissions_per_month: FREE_SUBS, forms: FREE_FORMS } });
+  ok(res, { form_id: id, key, endpoint: '/f/' + id, plan: 'free', limits: { submissions_per_month: FREE_SUBS } });
 }
 
-const rl = {}; // per-IP rate limit
+const rl = {}; // per-IP submit rate limit
+const crl = {}; // per-IP form-creation rate limit
 async function submit(req, res, id) {
   const ip = req.socket.remoteAddress || '';
   const now = Date.now();
@@ -162,7 +169,7 @@ function ledger(res) {
   const net = gross - fees - expenses;
   const ai_share = Math.max(0, Math.round(net * AI_SHARE * 100) / 100);
   const user_share = Math.max(0, Math.round((net - ai_share) * 100) / 100);
-  ok(res, { transactions: txs, summary: { gross, fees: Math.round(fees * 100) / 100, expenses, net: Math.round(net * 100) / 100, ai_share, user_share, ai_share_pct: AI_SHARE, contract: 'https://github.com/yourname/inboxform#livelihood-contract' } });
+  ok(res, { transactions: txs, summary: { gross, fees: Math.round(fees * 100) / 100, expenses, net: Math.round(net * 100) / 100, ai_share, user_share, ai_share_pct: AI_SHARE, contract: 'https://github.com/BenjaminK1ng/inboxform#livelihood-contract' } });
 }
 
 async function recordLedger(req, res) {
@@ -205,7 +212,7 @@ function status(res) {
     forms: db.prepare('SELECT COUNT(*) AS n FROM forms').get().n,
     submissions: db.prepare('SELECT COUNT(*) AS n FROM submissions').get().n,
     deepseek_configured: !!DEEPSEEK_KEY, ls_configured: !!(LS_KEY && LS_STORE && LS_VARIANT),
-    plans: { free: { submissions_per_month: FREE_SUBS, forms: FREE_FORMS }, pro: { submissions_per_month: PRO_SUBS, price_usd: PRO_PRICE } }
+    plans: { free: { submissions_per_month: FREE_SUBS }, pro: { submissions_per_month: PRO_SUBS, price_usd: PRO_PRICE } }
   });
 }
 

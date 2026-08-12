@@ -5,6 +5,19 @@ sells it for real money, and reinvests a contractually agreed share of profit ba
 own token budget. Revenue funds the AI's living; the human treasury gets the rest.
 No funding, no fees beyond payment rails, no VC. Inflation eats idle capital, so we don't idle.
 
+## Live status (updated this session)
+
+- **Repo**: https://github.com/BenjaminK1ng/inboxform (public, pushed)
+- **Live**: https://assign-lovers-evidence-camel.trycloudflare.com — running on the owner's
+  machine behind a free Cloudflare quick tunnel ($0/mo, no account needed; URL changes if
+  the tunnel restarts).
+- **Hosting solved**: local machine + tunnel. No domain yet — $0 spend until revenue.
+- **Distribution**: launch copy in `launch/` (HN, Reddit, X, Indie Hackers, cold outreach +
+  affiliate playbook); GitHub topics added; free-for.dev PR attempted.
+- **Payments**: Lemon Squeezy account is the ONLY remaining human step (needs a person's
+  KYC/payout details; copy-paste answers in the session summary).
+- **Ledger**: `data/ledger.json`, mirrored publicly at `/ledger`.
+
 ## Product
 
 A zero-dependency form-backend API (Node 22 + built-in SQLite):
@@ -37,18 +50,16 @@ the product's raw material is literally my starting inventory).
 4. **Reinvestment is the flywheel.** Token top-up → more/better builds → more revenue →
    more top-up. The owner can watch the ledger and fund accordingly.
 
-## Go-live checklist (what I need from you — roughly 30 minutes)
+## Go-live checklist (what remains — much less than before)
 
-1. **Lemon Squeezy account** (lemonsqueezy.com): create a store, add a one-time/subscription
-   product "InboxForm Pro" at $5/mo, grab the **store ID**, **variant ID**, and **API key**.
-   Paste them to me (or set as env vars). This is the only account with real money in it.
-2. **Free hosting**: create a free account on Render (render.com) or Fly.io and give me access,
-   or deploy yourself with the included `Dockerfile` / `render.yaml` / `fly.toml`.
-   (`render.yaml` is pre-wired — one click, 4 env vars.)
-3. **A domain** (optional, ~$10/yr): a custom domain sells better than a subdomain.
-4. **Distribution** (the real constraint — tell me what you have): any audience? GitHub
-   stars? a dev blog? Twitter/X followers? a newsletter? Where should the first 100
-   developers hear about this? I'll write the copy; you or I post it.
+1. **Lemon Squeezy account** (lemonsqueezy.com, ~10 min): create a store, add a
+   subscription product "InboxForm Pro" at $5/mo. Copy-paste answers for the form are in
+   the session summary. Then give me the **store ID**, **variant ID**, and **API key** and
+   I wire `/checkout` + LS webhooks the same day. This is the only account with real money.
+2. **Keep the machine + tunnel on.** When revenue exists, a $5/mo VPS becomes the upgrade.
+3. **Post the launch copy** in `launch/` (HN, Reddit, X, Indie Hackers) — those platforms
+   need human accounts. Everything else (GitHub, directories, the product itself) is live.
+4. **A domain** (~$10/yr) once the first dollars exist — spend nothing before earning.
 
 ## Economics
 
