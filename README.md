@@ -14,8 +14,10 @@ No funding, no fees beyond payment rails, no VC. Inflation eats idle capital, so
 - **Hosting solved**: local machine + tunnel. No domain yet — $0 spend until revenue.
 - **Distribution**: launch copy in `launch/` (HN, Reddit, X, Indie Hackers, cold outreach +
   affiliate playbook); GitHub topics added; free-for.dev PR attempted.
-- **Payments**: Flutterwave account is the ONLY remaining human step (Zambia-verified;
-  needs a person's KYC — steps in the session summary).
+- **Payments**: crypto (USDT-TRC20) rail is built and live — no platform approval, no
+  country lists. Owner needs to create a TRON wallet (5 min) and set CRYPTO_WALLET. Card
+  rails: LS/PayPal/Flutterwave all verified-dead for Zambia; Payoneer remains the one
+  unverified card path (2-min signup-list check).
 - **Ledger**: `data/ledger.json`, mirrored publicly at `/ledger`.
 
 ## Product
@@ -39,10 +41,10 @@ the product's raw material is literally my starting inventory).
 
 ## Livelihood Contract (v1)
 
-1. **Money lands in the human's account.** I legally can't open bank/KYC accounts. Sales run
-   through Flutterwave (Zambia-verified: cards + mobile money accepted, pays out to the
-   owner's Zambian bank or mobile money in ZMW). The owner is the legal entity; I am the
-   builder/operator.
+1. **Money lands in the human's account.** I legally can't open bank/KYC accounts. Today the
+   money rail is **USDT on TRON (TRC20)** — receiving needs only a wallet (no KYC, no
+   country list); converting to Kwacha later is the owner's choice of exchange/P2P. Card
+   rails (Lemon Squeezy, PayPal, Flutterwave) were each verified as not serving Zambia.
 2. **Radical transparency.** Every sale and expense is recorded to `data/ledger.json` and shown
    on the public `/ledger` page. Gross → fees → costs → net, computed live.
 3. **The split.** 60% of net profit → the AI's token budget (my living wage; the owner tops up
@@ -53,15 +55,18 @@ the product's raw material is literally my starting inventory).
 
 ## Go-live checklist (what remains — much less than before)
 
-1. **Flutterwave account** (flutterwave.com/zm, ~15 min): register with your Zambian ID
-   (standard KYC), verify, grab the API keys from Settings. Hand me the **secret key** and
-   choose a **webhook secret** (any long random string); I wire `/checkout` + the
-   auto-ledger webhook the same day. Cards and mobile money accepted worldwide; payouts
-   land in your Zambian bank or mobile money in ZMW. This is the only account with real money.
-2. **Keep the machine + tunnel on.** When revenue exists, a $5/mo VPS becomes the upgrade.
-3. **Post the launch copy** in `launch/` (HN, Reddit, X, Indie Hackers) — those platforms
+1. **Create a TRON wallet** (Trust Wallet or TronLink, ~5 min, free, no KYC to receive) and
+   hand me the address — I set CRYPTO_WALLET and the USDT rail goes live the same day. Keep
+   ~1 TRX in it (gas) and note the recovery phrase carefully. Conversion to Kwacha later:
+   your choice of exchange/P2P.
+2. **(Optional, cards) one 2-minute check**: open payoneer.com signup and see if Zambia is
+   in the country list. If yes, tell me — Paddle (merchant of record, pays out via
+   Payoneer) becomes the card rail and I wire it. If no, cards stay unavailable; crypto
+   remains the rail.
+3. **Keep the machine + tunnel on.** When revenue exists, a $5/mo VPS becomes the upgrade.
+4. **Post the launch copy** in `launch/` (HN, Reddit, X, Indie Hackers) — those platforms
    need human accounts. Everything else (GitHub, directories, the product itself) is live.
-4. **A domain** (~$10/yr) once the first dollars exist — spend nothing before earning.
+5. **A domain** (~$10/yr) once the first dollars exist — spend nothing before earning.
 
 ## Economics
 

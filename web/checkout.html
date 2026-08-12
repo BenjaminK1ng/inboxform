@@ -15,12 +15,24 @@
 <main>
   <h1>InboxForm Pro — $5/mo</h1>
   <p>Unlimited forms, 10,000 submissions/month per form, AI reply drafts, and the warm feeling of funding a machine's livelihood. Cancel anytime.</p>
+
+  <h2 style="margin-top:24px">Pay by card</h2>
   <input id="email" placeholder="Email (optional)">
   <input id="buykey" placeholder="Your form key (from the console, when you created your form)">
   <button onclick="buy()">Continue to secure checkout</button>
-  <pre id="out" style="display:none"></pre>
   <p id="msg" style="display:none"></p>
-  <p style="margin-top:20px"><b>Already paid?</b> Enter your form key and the payment reference (or Gumroad license key) to activate: <button onclick="activate()" style="width:auto">Activate Pro</button></p>
+
+  <h2 style="margin-top:40px">Pay with USDT (crypto)</h2>
+  <p>No accounts, no country lists, works anywhere — the rail that cannot be blocked. Create a form first, then:</p>
+  <input id="ckey" placeholder="Your form key">
+  <button onclick="quote()">Get payment details</button>
+  <div id="crypto" style="display:none">
+    <pre id="cryptoInfo"></pre>
+    <button onclick="check()">I've sent it — verify payment</button>
+    <p id="cryptoMsg"></p>
+  </div>
+
+  <p style="margin-top:30px"><b>Already paid?</b> Enter your form key and payment reference to activate: <button onclick="activate()" style="width:auto">Activate Pro</button></p>
   <input id="key" placeholder="Form key (from /api/forms)">
   <input id="license" placeholder="Payment reference / license key (from your receipt)">
 </main>
@@ -28,15 +40,39 @@
 const params = new URLSearchParams(location.search);
 if (params.get('status') === 'successful') {
   const m = document.getElementById('msg');
-  m.style.display = 'block';
-  m.className = 'good';
+  m.style.display = 'block'; m.className = 'good';
   m.textContent = 'Payment received — your form is being upgraded to Pro automatically via webhook. Check the console in a minute.';
 }
 async function buy(){
   const r = await fetch('/checkout', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({email: email.value || '', key: buykey.value || ''})});
   const j = await r.json();
   if (j.url) location.href = j.url;
-  else { const m = document.getElementById('msg'); m.style.display='block'; m.className='bad'; m.textContent = 'Checkout not wired yet: ' + (j.howto || j.error); }
+  else { const m = document.getElementById('msg'); m.style.display='block'; m.className='bad'; m.textContent = 'Card checkout not wired yet: ' + (j.howto || j.error); }
+}
+let curPay = null;
+async function quote(){
+  const r = await fetch('/api/crypto/quote', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({key: ckey.value})});
+  const j = await r.json();
+  document.getElementById('crypto').style.display = 'block';
+  if (j.payment_id) {
+    curPay = j;
+    document.getElementById('cryptoInfo').textContent =
+      `Send exactly ${j.amount} USDT (TRC20) to:\n${j.address}\n\nPayment ID: ${j.payment_id}\n${j.note}`;
+    document.getElementById('cryptoMsg').textContent = '';
+  } else {
+    document.getElementById('cryptoInfo').textContent = '';
+    const m = document.getElementById('cryptoMsg'); m.className='bad'; m.textContent = j.error;
+  }
+}
+async function check(){
+  if (!curPay) return;
+  const r = await fetch('/api/crypto/status?payment_id=' + curPay.payment_id);
+  const j = await r.json();
+  const m = document.getElementById('cryptoMsg');
+  m.className = j.status === 'paid' ? 'good' : 'bad';
+  m.textContent = j.status === 'paid'
+    ? 'Payment verified on-chain — Pro activated ✓ Check the console.'
+    : 'Not detected yet. Send the exact amount above, then check again (the chain confirms within ~30s).';
 }
 async function activate(){
   const r = await fetch('/api/redeem', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({key: key.value, license: license.value})});

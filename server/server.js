@@ -20,6 +20,7 @@ const WEBHOOK_SECRET = process.env.PAYMENTS_WEBHOOK_SECRET || '';
 const GUMROAD_PRODUCT_URL = process.env.GUMROAD_PRODUCT_URL || '';
 const GUMROAD_PRODUCT_ID = process.env.GUMROAD_PRODUCT_ID || '';
 const FLW_SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY || '';
+const CRYPTO_WALLET = process.env.CRYPTO_WALLET || ''; // TRON (TRC20) wallet that receives USDT
 const FREE_SUBS = 100, PRO_SUBS = 10000, PRO_PRICE = 5;
 const MAX_FORMS = 1000, FORMS_PER_IP_HOUR = 5;
 const LS_FEE_PCT = 0.05, LS_FEE_FLAT = 0.50; // Lemon Squeezy ~5% + $0.50
@@ -40,6 +41,10 @@ CREATE TABLE IF NOT EXISTS submissions (
 CREATE TABLE IF NOT EXISTS usage (
   form_id TEXT NOT NULL, month TEXT NOT NULL, count INTEGER DEFAULT 0,
   PRIMARY KEY (form_id, month)
+);
+CREATE TABLE IF NOT EXISTS crypto_orders (
+  id TEXT PRIMARY KEY, form_key TEXT, amount_usd INTEGER,
+  status TEXT DEFAULT 'pending', created_at INTEGER, txid TEXT DEFAULT ''
 );
 `);
 
@@ -188,6 +193,46 @@ async function recordLedger(req, res) {
   ok(res, { recorded: txs[txs.length - 1] });
 }
 
+// Crypto rail (USDT-TRC20): no country lists, no approval — the only payout path that
+// cannot be blocked for the operator. Unique-amount scheme: each checkout gets its own
+// amount with random cents, making payments identifiable on-chain without a memo.
+async function cryptoQuote(req, res) {
+  if (!CRYPTO_WALLET) return fail(res, 501, 'crypto not configured yet (CRYPTO_WALLET env)');
+  const b = await readBody(req);
+  const key = String(b.key || '').slice(0, 32);
+  const form = key && db.prepare('SELECT id FROM forms WHERE key=?').get(key);
+  if (!form) return fail(res, 400, 'provide your form key (create a form in the console first)');
+  const id = rid(8);
+  const cents = 500 + Math.floor(Math.random() * 99) + 1; // unique 5.01..5.99
+  db.prepare('INSERT INTO crypto_orders (id,form_key,amount_usd,status,created_at) VALUES (?,?,?,?,?)').run(id, key, cents, 'pending', Date.now());
+  ok(res, { payment_id: id, address: CRYPTO_WALLET, amount: (cents / 100).toFixed(2), asset: 'USDT', network: 'TRC20', note: 'Send exactly this amount in USDT on TRON (TRC20). The cents make your payment uniquely identifiable — no memo needed.' });
+}
+
+async function cryptoStatus(req, res) {
+  const q = new URL(req.url, 'http://x').searchParams;
+  const o = db.prepare('SELECT * FROM crypto_orders WHERE id=?').get(q.get('payment_id'));
+  if (!o) return fail(res, 404, 'unknown payment');
+  const pay = { address: CRYPTO_WALLET, amount: (o.amount_usd / 100).toFixed(2) };
+  if (o.status === 'paid') return ok(res, { status: 'paid', upgraded: true, ...pay });
+  if (Date.now() - o.created_at > 3600000) {
+    db.prepare('UPDATE crypto_orders SET status=? WHERE id=?').run('expired', o.id);
+    return ok(res, { status: 'expired', ...pay });
+  }
+  try {
+    const r = await fetch(`https://api.trongrid.io/v1/accounts/${CRYPTO_WALLET}/transactions/trc20?only_to=true&limit=50&min_timestamp=${o.created_at}`);
+    const j = await r.json();
+    const target = String(o.amount_usd * 1000000);
+    const dup = db.prepare('SELECT 1 FROM crypto_orders WHERE txid=? AND status=?');
+    const hit = (j.data || []).find((t) => t.token_symbol === 'USDT' && String(t.value) === target && !dup.get(t.transaction_id, 'paid'));
+    if (hit) {
+      db.prepare('UPDATE crypto_orders SET status=?, txid=? WHERE id=?').run('paid', hit.transaction_id, o.id);
+      recordSale(o.form_key, o.amount_usd, 'Pro upgrade (USDT-TRC20)');
+      return ok(res, { status: 'paid', upgraded: true, ...pay });
+    }
+  } catch { /* transient — next poll retries */ }
+  ok(res, { status: 'pending', ...pay });
+}
+
 async function checkout(req, res) {
   if (FLW_SECRET_KEY) {
     // Flutterwave checkout — tx_ref embeds the form key so the webhook can auto-upgrade.
@@ -296,6 +341,7 @@ function status(res) {
     deepseek_configured: !!DEEPSEEK_KEY, ls_configured: !!(LS_KEY && LS_STORE && LS_VARIANT),
     payments_webhook_configured: !!WEBHOOK_SECRET,
     flutterwave_configured: !!FLW_SECRET_KEY,
+    crypto_configured: !!CRYPTO_WALLET,
     gumroad_configured: !!GUMROAD_PRODUCT_URL,
     plans: { free: { submissions_per_month: FREE_SUBS }, pro: { submissions_per_month: PRO_SUBS, price_usd: PRO_PRICE } }
   });
@@ -313,6 +359,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && p === '/checkout') return await checkout(req, res);
     if (req.method === 'POST' && p === '/api/payments/webhook') return await paymentsWebhook(req, res);
     if (req.method === 'POST' && p === '/api/redeem') return await redeem(req, res);
+    if (req.method === 'POST' && p === '/api/crypto/quote') return await cryptoQuote(req, res);
+    if (req.method === 'GET' && p === '/api/crypto/status') return await cryptoStatus(req, res);
     if (req.method === 'GET' && p === '/checkout') return serveStatic(req, res, 'checkout.html');
     if (req.method === 'GET' && p === '/api/status') return status(res);
     if (req.method === 'GET') return serveStatic(req, res, p);
