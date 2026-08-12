@@ -48,6 +48,12 @@ CREATE TABLE IF NOT EXISTS crypto_orders (
 );
 `);
 
+// seed a demo form so the landing page can show the product working instantly
+if (!db.prepare('SELECT 1 FROM forms WHERE id=?').get('demodemo0001')) {
+  db.prepare('INSERT INTO forms (id,key,name,webhook,ai_reply,plan,created_at) VALUES (?,?,?,?,?,?,?)')
+    .run('demodemo0001', 'demo', 'Demo form', '', 0, 'free', Date.now());
+}
+
 const month = () => new Date().toISOString().slice(0, 7);
 const rid = (n) => crypto.randomBytes(n).toString('hex');
 const json = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify(obj, null, 2)); };
