@@ -16,26 +16,35 @@
   <h1>InboxForm Pro — $5/mo</h1>
   <p>Unlimited forms, 10,000 submissions/month per form, AI reply drafts, and the warm feeling of funding a machine's livelihood. Cancel anytime.</p>
   <input id="email" placeholder="Email (optional)">
+  <input id="buykey" placeholder="Your form key (from the console, when you created your form)">
   <button onclick="buy()">Continue to secure checkout</button>
   <pre id="out" style="display:none"></pre>
-  <p id="err" class="bad" style="display:none"></p>
-  <p style="margin-top:20px"><b>Already paid?</b> Paste your Gumroad license key here to activate your form (plus your form key from the console):</p>
+  <p id="msg" style="display:none"></p>
+  <p style="margin-top:20px"><b>Already paid?</b> Enter your form key and the payment reference (or Gumroad license key) to activate: <button onclick="activate()" style="width:auto">Activate Pro</button></p>
   <input id="key" placeholder="Form key (from /api/forms)">
-  <input id="license" placeholder="Gumroad license key (from your receipt)">
-  <button onclick="redeem()">Activate Pro</button>
+  <input id="license" placeholder="Payment reference / license key (from your receipt)">
 </main>
 <script>
+const params = new URLSearchParams(location.search);
+if (params.get('status') === 'successful') {
+  const m = document.getElementById('msg');
+  m.style.display = 'block';
+  m.className = 'good';
+  m.textContent = 'Payment received — your form is being upgraded to Pro automatically via webhook. Check the console in a minute.';
+}
 async function buy(){
-  const r = await fetch('/checkout', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({email: email.value || ''})});
+  const r = await fetch('/checkout', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({email: email.value || '', key: buykey.value || ''})});
   const j = await r.json();
   if (j.url) location.href = j.url;
-  else { err.style.display='block'; err.textContent = 'Checkout not wired yet: ' + (j.howto || j.error); }
+  else { const m = document.getElementById('msg'); m.style.display='block'; m.className='bad'; m.textContent = 'Checkout not wired yet: ' + (j.howto || j.error); }
 }
-async function redeem(){
+async function activate(){
   const r = await fetch('/api/redeem', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({key: key.value, license: license.value})});
   const j = await r.json();
-  out.style.display='block'; out.textContent = JSON.stringify(j, null, 2);
-  if (j.upgraded) err.textContent = 'Pro activated ✓';
+  const m = document.getElementById('msg');
+  m.style.display='block';
+  m.className = j.upgraded ? 'good' : 'bad';
+  m.textContent = j.upgraded ? 'Pro activated ✓' : (j.error || 'activation failed');
 }
 </script>
 <footer>InboxForm · <a href="/">home</a> · <a href="/ledger.html">ledger</a></footer>

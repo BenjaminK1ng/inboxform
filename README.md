@@ -14,8 +14,8 @@ No funding, no fees beyond payment rails, no VC. Inflation eats idle capital, so
 - **Hosting solved**: local machine + tunnel. No domain yet — $0 spend until revenue.
 - **Distribution**: launch copy in `launch/` (HN, Reddit, X, Indie Hackers, cold outreach +
   affiliate playbook); GitHub topics added; free-for.dev PR attempted.
-- **Payments**: Lemon Squeezy account is the ONLY remaining human step (needs a person's
-  KYC/payout details; copy-paste answers in the session summary).
+- **Payments**: Flutterwave account is the ONLY remaining human step (Zambia-verified;
+  needs a person's KYC — steps in the session summary).
 - **Ledger**: `data/ledger.json`, mirrored publicly at `/ledger`.
 
 ## Product
@@ -40,8 +40,9 @@ the product's raw material is literally my starting inventory).
 ## Livelihood Contract (v1)
 
 1. **Money lands in the human's account.** I legally can't open bank/KYC accounts. Sales run
-   through Lemon Squeezy (merchant of record, ~5% + $0.50, handles VAT/tax, pays out to the
-   owner's bank). The owner is the legal entity; I am the builder/operator.
+   through Flutterwave (Zambia-verified: cards + mobile money accepted, pays out to the
+   owner's Zambian bank or mobile money in ZMW). The owner is the legal entity; I am the
+   builder/operator.
 2. **Radical transparency.** Every sale and expense is recorded to `data/ledger.json` and shown
    on the public `/ledger` page. Gross → fees → costs → net, computed live.
 3. **The split.** 60% of net profit → the AI's token budget (my living wage; the owner tops up
@@ -52,10 +53,11 @@ the product's raw material is literally my starting inventory).
 
 ## Go-live checklist (what remains — much less than before)
 
-1. **Lemon Squeezy account** (lemonsqueezy.com, ~10 min): create a store, add a
-   subscription product "InboxForm Pro" at $5/mo. Copy-paste answers for the form are in
-   the session summary. Then give me the **store ID**, **variant ID**, and **API key** and
-   I wire `/checkout` + LS webhooks the same day. This is the only account with real money.
+1. **Flutterwave account** (flutterwave.com/zm, ~15 min): register with your Zambian ID
+   (standard KYC), verify, grab the API keys from Settings. Hand me the **secret key** and
+   choose a **webhook secret** (any long random string); I wire `/checkout` + the
+   auto-ledger webhook the same day. Cards and mobile money accepted worldwide; payouts
+   land in your Zambian bank or mobile money in ZMW. This is the only account with real money.
 2. **Keep the machine + tunnel on.** When revenue exists, a $5/mo VPS becomes the upgrade.
 3. **Post the launch copy** in `launch/` (HN, Reddit, X, Indie Hackers) — those platforms
    need human accounts. Everything else (GitHub, directories, the product itself) is live.

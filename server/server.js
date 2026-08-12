@@ -19,6 +19,7 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 const WEBHOOK_SECRET = process.env.PAYMENTS_WEBHOOK_SECRET || '';
 const GUMROAD_PRODUCT_URL = process.env.GUMROAD_PRODUCT_URL || '';
 const GUMROAD_PRODUCT_ID = process.env.GUMROAD_PRODUCT_ID || '';
+const FLW_SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY || '';
 const FREE_SUBS = 100, PRO_SUBS = 10000, PRO_PRICE = 5;
 const MAX_FORMS = 1000, FORMS_PER_IP_HOUR = 5;
 const LS_FEE_PCT = 0.05, LS_FEE_FLAT = 0.50; // Lemon Squeezy ~5% + $0.50
@@ -188,6 +189,24 @@ async function recordLedger(req, res) {
 }
 
 async function checkout(req, res) {
+  if (FLW_SECRET_KEY) {
+    // Flutterwave checkout — tx_ref embeds the form key so the webhook can auto-upgrade.
+    const b = await readBody(req);
+    const ref = 'if-' + (String(b.key || '').slice(0, 32) || rid(8)) + '-' + Date.now().toString(36);
+    const r = await fetch('https://api.flutterwave.com/v3/payments', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${FLW_SECRET_KEY}` },
+      body: JSON.stringify({
+        tx_ref: ref, amount: PRO_PRICE, currency: 'USD',
+        redirect_url: (process.env.WEB_BASE || '') + '/checkout?status=successful',
+        customer: { email: b.email || 'customer@inboxform.dev', name: 'InboxForm customer' },
+        customizations: { title: 'InboxForm Pro', description: '1 month of InboxForm Pro — unlimited forms, 10k submissions/mo, AI replies' }
+      })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (j.status !== 'success' || !j.data || !j.data.link) return fail(res, 502, 'flutterwave: ' + (j.message || 'checkout failed'));
+    return ok(res, { gateway: 'flutterwave', url: j.data.link });
+  }
   if (GUMROAD_PRODUCT_URL) {
     const b = await readBody(req);
     const sep = GUMROAD_PRODUCT_URL.includes('?') ? '&' : '?';
@@ -254,6 +273,7 @@ async function paymentsWebhook(req, res) {
   const body = await readBody(req);
   const payload = body.data || body;
   let key = (payload.custom_data && payload.custom_data.key) || payload.key || (payload.sale && payload.sale.key) || null;
+  if (!key) { const ref = payload.tx_ref || (payload.data && payload.data.tx_ref) || ''; key = ref.split('-')[1] || null; }
   if (!key && payload.sale && Array.isArray(payload.sale.custom_fields)) {
     const kf = payload.sale.custom_fields.find((f) => f && f.name === 'key');
     if (kf) key = kf.value;
@@ -261,8 +281,8 @@ async function paymentsWebhook(req, res) {
     key = payload.sale.custom_fields.key || null;
   }
   if (!key) return fail(res, 400, 'no form key in payload');
-  const rawAmount = payload.amount || (payload.sale && (payload.sale.price || ((payload.sale.recurring_charge || {}).amount_cents || 500)));
-  const formId = recordSale(key, rawAmount, 'Pro upgrade (webhook)');
+  const rawAmount = payload.amount || (payload.data && payload.data.amount) || (payload.sale && (payload.sale.price || ((payload.sale.recurring_charge || {}).amount_cents || 500)));
+  const formId = recordSale(key, rawAmount, 'Pro upgrade (' + (payload.event || 'webhook') + ')');
   if (!formId) return fail(res, 404, 'unknown form key');
   ok(res, { upgraded: true, form_id: formId });
 }
@@ -275,6 +295,7 @@ function status(res) {
     submissions: db.prepare('SELECT COUNT(*) AS n FROM submissions').get().n,
     deepseek_configured: !!DEEPSEEK_KEY, ls_configured: !!(LS_KEY && LS_STORE && LS_VARIANT),
     payments_webhook_configured: !!WEBHOOK_SECRET,
+    flutterwave_configured: !!FLW_SECRET_KEY,
     gumroad_configured: !!GUMROAD_PRODUCT_URL,
     plans: { free: { submissions_per_month: FREE_SUBS }, pro: { submissions_per_month: PRO_SUBS, price_usd: PRO_PRICE } }
   });
