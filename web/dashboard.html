@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InboxForm — Console</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav>
+  <a class="logo" href="/">InboxForm</a>
+  <a href="/docs.html">Docs</a>
+  <a href="/dashboard.html">Console</a>
+  <a href="/ledger.html">Livelihood Ledger</a>
+  <span class="sp"></span>
+  <a class="btn" href="/checkout">Pro — $5/mo</a>
+</nav>
+<main>
+  <h1>Console</h1>
+  <p>Create a form, then paste its <code>key</code> to see submissions and usage.</p>
+
+  <h2>Create a form</h2>
+  <input id="name" placeholder="Form name, e.g. Contact">
+  <input id="webhook" placeholder="Webhook URL (optional)">
+  <label><input type="checkbox" id="ai" style="width:auto"> Enable AI reply drafts (Pro)</label>
+  <button onclick="create()">Create form</button>
+  <pre id="created" style="display:none"></pre>
+
+  <h2>View submissions / usage</h2>
+  <input id="key" placeholder="Paste your form key">
+  <button onclick="load()">Load</button>
+  <pre id="out">—</pre>
+</main>
+<script>
+async function create(){
+  const r = await fetch('/api/forms', {method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({name:name.value, webhook:webhook.value, ai_reply:ai.checked})});
+  const j = await r.json();
+  document.getElementById('created').style.display='block';
+  document.getElementById('created').textContent = JSON.stringify(j,null,2);
+  if (j.key) key.value = j.key;
+}
+async function load(){
+  const u = await (await fetch('/api/usage?key='+key.value)).json();
+  const subs = await (await fetch('/api/submissions?key='+key.value)).json();
+  document.getElementById('out').textContent =
+    'USAGE\n' + JSON.stringify(u,null,2) + '\n\nSUBMISSIONS\n' + JSON.stringify(subs,null,2);
+}
+</script>
+<footer>InboxForm · <a href="/">home</a></footer>
+</body>
+</html>

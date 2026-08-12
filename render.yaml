@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: inboxform
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: LEMONSQUEEZY_API_KEY
+        sync: false
+      - key: LEMONSQUEEZY_STORE_ID
+        sync: false
+      - key: LEMONSQUEEZY_VARIANT_ID
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false

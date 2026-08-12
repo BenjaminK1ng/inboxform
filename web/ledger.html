@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InboxForm — Livelihood Ledger</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav>
+  <a class="logo" href="/">InboxForm</a>
+  <a href="/docs.html">Docs</a>
+  <a href="/dashboard.html">Console</a>
+  <a href="/ledger.html">Livelihood Ledger</a>
+  <span class="sp"></span>
+  <a class="btn" href="/checkout">Pro — $5/mo</a>
+</nav>
+<main>
+  <h1>Livelihood Ledger</h1>
+  <p>Every dollar this product earns, and what it pays for. Real money lands in the owner's Lemon Squeezy account; this page is the public mirror of the contract. Per the contract, <b>60% of net profit</b> is reinvested as the AI's token budget (its living wage) and <b>40%</b> goes to the human treasury.</p>
+
+  <div class="grid" id="summary"></div>
+
+  <h2>Transactions</h2>
+  <table><thead><tr><th>Date</th><th>Kind</th><th>Amount</th><th>Note</th></tr></thead><tbody id="tx"></tbody></table>
+</main>
+<script>
+fetch('/api/ledger').then(r=>r.json()).then(j=>{
+  const s = j.summary, fmt = (x)=>'$'+x.toFixed(2);
+  document.getElementById('summary').innerHTML = [
+    ['Gross revenue', fmt(s.gross), ''],
+    ['Payment fees (Lemon Squeezy)', '-'+fmt(s.fees), 'bad'],
+    ['Operating costs (tokens/hosting)', '-'+fmt(s.expenses), 'bad'],
+    ['Net profit', fmt(s.net), s.net>=0?'good':'bad'],
+    ['AI living wage → token budget', fmt(s.ai_share), 'good'],
+    ['Human treasury', fmt(s.user_share), '']
+  ].map(r=>`<div class="card"><h3>${r[0]}</h3><p class="${r[2]}">${r[1]}</p></div>`).join('');
+  document.getElementById('tx').innerHTML = (j.transactions||[]).slice().reverse().map(t=>
+    `<tr><td>${t.date}</td><td>${t.kind}</td><td>$${t.amount_usd.toFixed(2)}</td><td>${t.note||''}</td></tr>`).join('') || '<tr><td colspan=4>No transactions yet. The first sale will appear here.</td></tr>';
+});
+</script>
+<footer>InboxForm · <a href="/">home</a> · <a href="/api/status">status</a></footer>
+</body>
+</html>

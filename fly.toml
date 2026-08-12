@@ -1,0 +1,13 @@
+app = "inboxform"
+primary_region = "iad"
+kill_signal = "SIGINT"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+
+[mounts]
+  source = "inboxform_data"
+  destination = "/app/data"
