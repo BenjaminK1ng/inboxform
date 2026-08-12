@@ -21,6 +21,7 @@ const GUMROAD_PRODUCT_URL = process.env.GUMROAD_PRODUCT_URL || '';
 const GUMROAD_PRODUCT_ID = process.env.GUMROAD_PRODUCT_ID || '';
 const FLW_SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY || '';
 const CRYPTO_WALLET = process.env.CRYPTO_WALLET || ''; // TRON (TRC20) wallet that receives USDT
+const AI_DAILY_CAP = Number(process.env.AI_DAILY_CAP || 2000); // hard daily ceiling on AI-reply spend
 const FREE_SUBS = 100, PRO_SUBS = 10000, PRO_PRICE = 5;
 const MAX_FORMS = 1000, FORMS_PER_IP_HOUR = 5;
 const LS_FEE_PCT = 0.05, LS_FEE_FLAT = 0.50; // Lemon Squeezy ~5% + $0.50
@@ -45,6 +46,9 @@ CREATE TABLE IF NOT EXISTS usage (
 CREATE TABLE IF NOT EXISTS crypto_orders (
   id TEXT PRIMARY KEY, form_key TEXT, amount_usd INTEGER,
   status TEXT DEFAULT 'pending', created_at INTEGER, txid TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS ai_usage (
+  day TEXT PRIMARY KEY, count INTEGER DEFAULT 0
 );
 `);
 
@@ -126,13 +130,23 @@ async function submit(req, res, id) {
   db.prepare('INSERT INTO usage (form_id,month,count) VALUES (?,?,1) ON CONFLICT(form_id,month) DO UPDATE SET count=count+1').run(id, m);
 
   let reply = null;
-  if (form.ai_reply && DEEPSEEK_KEY) {
+  if (form.ai_reply && form.plan === 'pro' && DEEPSEEK_KEY && aiBudgetOk()) {
     try { reply = await aiReply(form.name, body); } catch { reply = null; }
   }
   if (form.webhook) {
     try { fetch(form.webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ form_id: id, submitted_at: now, data: body, ai_reply: reply }), signal: AbortSignal.timeout(5000) }).catch(() => {}); } catch {}
   }
   ok(res, { ok: true, submission_id: rid(6), ai_reply: reply });
+}
+
+// Daily AI-reply budget: only Pro (paying) forms can trigger inference, and never more than
+// AI_DAILY_CAP replies/day globally — a misbehaving form can't drain the API budget.
+function aiBudgetOk() {
+  const day = new Date().toISOString().slice(0, 10);
+  const row = db.prepare('SELECT count FROM ai_usage WHERE day=?').get(day);
+  if (row && row.count >= AI_DAILY_CAP) return false;
+  db.prepare('INSERT INTO ai_usage (day,count) VALUES (?,1) ON CONFLICT(day) DO UPDATE SET count=count+1').run(day);
+  return true;
 }
 
 async function aiReply(formName, data) {

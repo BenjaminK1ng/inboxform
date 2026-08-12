@@ -19,6 +19,8 @@ No funding, no fees beyond payment rails, no VC. Inflation eats idle capital, so
   (`TJYZoBEENdEBDtBojbJE76nNv5zU4o9ewY`), no accounts, no KYC, no country lists. Recovery:
   `/home/gold/inboxform-wallet-backup.txt`. Card rails (LS/PayPal/Flutterwave) verified
   dead for Zambia; Payoneer remains the one unverified card path (optional 2-min check).
+- **AI replies**: gated to Pro (paying) forms + a daily cap; the DeepSeek key is
+  intentionally NOT wired to the public service yet — zero spend until revenue exists.
 - **Ledger**: `data/ledger.json`, mirrored publicly at `/ledger`.
 
 ## Product
