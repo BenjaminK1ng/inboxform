@@ -16,6 +16,9 @@ const LS_KEY = process.env.LEMONSQUEEZY_API_KEY || '';
 const LS_STORE = process.env.LEMONSQUEEZY_STORE_ID || '';
 const LS_VARIANT = process.env.LEMONSQUEEZY_VARIANT_ID || '';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+const WEBHOOK_SECRET = process.env.PAYMENTS_WEBHOOK_SECRET || '';
+const GUMROAD_PRODUCT_URL = process.env.GUMROAD_PRODUCT_URL || '';
+const GUMROAD_PRODUCT_ID = process.env.GUMROAD_PRODUCT_ID || '';
 const FREE_SUBS = 100, PRO_SUBS = 10000, PRO_PRICE = 5;
 const MAX_FORMS = 1000, FORMS_PER_IP_HOUR = 5;
 const LS_FEE_PCT = 0.05, LS_FEE_FLAT = 0.50; // Lemon Squeezy ~5% + $0.50
@@ -185,7 +188,12 @@ async function recordLedger(req, res) {
 }
 
 async function checkout(req, res) {
-  if (!LS_KEY || !LS_STORE || !LS_VARIANT) return fail(res, 501, { error: 'checkout not configured yet', howto: 'Set LEMONSQUEEZY_API_KEY, _STORE_ID, _VARIANT_ID. Until then, sales are recorded manually via /api/ledger/record.' });
+  if (GUMROAD_PRODUCT_URL) {
+    const b = await readBody(req);
+    const sep = GUMROAD_PRODUCT_URL.includes('?') ? '&' : '?';
+    return ok(res, { gateway: 'gumroad', url: GUMROAD_PRODUCT_URL + (b.email ? `${sep}email=${encodeURIComponent(b.email)}` : '') });
+  }
+  if (!LS_KEY || !LS_STORE || !LS_VARIANT) return fail(res, 501, { error: 'checkout not configured yet', howto: 'Set GUMROAD_PRODUCT_URL (or Lemon Squeezy keys). Sales then record automatically via webhook.' });
   const b = await readBody(req);
   const r = await fetch('https://api.lemonsqueezy.com/v1/checkouts', {
     method: 'POST',
@@ -205,6 +213,60 @@ async function checkout(req, res) {
   ok(res, { url });
 }
 
+// Upgrade a form to Pro and record the sale in the ledger. Returns form id or null.
+function recordSale(formKey, amount, note) {
+  const form = db.prepare('SELECT id FROM forms WHERE key=?').get(formKey);
+  if (!form) return null;
+  const a = Number(amount) || 5;
+  const usd = a > 100 ? a / 100 : a; // some gateways send cents
+  db.prepare('UPDATE forms SET plan=? WHERE key=?').run('pro', formKey);
+  const f = path.join(DATA_DIR, 'ledger.json');
+  const txs = fs.existsSync(f) ? (JSON.parse(fs.readFileSync(f, 'utf8')).transactions || []) : [];
+  txs.push({ date: new Date().toISOString().slice(0, 10), kind: 'sale', amount_usd: Math.round(usd * 100) / 100, note });
+  fs.writeFileSync(f, JSON.stringify({ transactions: txs }, null, 2));
+  return form.id;
+}
+
+// Gumroad license redemption: customer pastes the license key from their receipt,
+// we verify against Gumroad's public license API, then upgrade the form.
+async function redeem(req, res) {
+  const b = await readBody(req);
+  if (!GUMROAD_PRODUCT_ID || !b.key || !b.license) return fail(res, 400, 'key, license, and GUMROAD_PRODUCT_ID required');
+  const r = await fetch('https://api.gumroad.com/v2/licenses/verify', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ product_id: GUMROAD_PRODUCT_ID, license_key: String(b.license) })
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!j.success) return fail(res, 402, 'invalid license key');
+  const formId = recordSale(b.key, j.sale && j.sale.price, 'Pro upgrade (license redeem)');
+  if (!formId) return fail(res, 404, 'unknown form key');
+  ok(res, { upgraded: true, form_id: formId });
+}
+
+// Gateway-agnostic payment webhook: verifies a shared secret, finds the form key in the
+// payload, upgrades the form to Pro, and records the sale in the ledger — automatically.
+// (Works for Paddle Classic, Gumroad, or any gateway that forwards a key. Signatures get
+// gateway-specific verification once the gateway is chosen.)
+async function paymentsWebhook(req, res) {
+  if (!WEBHOOK_SECRET) return fail(res, 501, 'PAYMENTS_WEBHOOK_SECRET not configured');
+  const secret = (req.headers['x-webhook-secret'] || req.headers['x-gumroad-signature'] || new URL(req.url, 'http://x').searchParams.get('secret') || '').toString();
+  if (secret !== WEBHOOK_SECRET) return fail(res, 401, 'bad webhook secret');
+  const body = await readBody(req);
+  const payload = body.data || body;
+  let key = (payload.custom_data && payload.custom_data.key) || payload.key || (payload.sale && payload.sale.key) || null;
+  if (!key && payload.sale && Array.isArray(payload.sale.custom_fields)) {
+    const kf = payload.sale.custom_fields.find((f) => f && f.name === 'key');
+    if (kf) key = kf.value;
+  } else if (!key && payload.sale && payload.sale.custom_fields) {
+    key = payload.sale.custom_fields.key || null;
+  }
+  if (!key) return fail(res, 400, 'no form key in payload');
+  const rawAmount = payload.amount || (payload.sale && (payload.sale.price || ((payload.sale.recurring_charge || {}).amount_cents || 500)));
+  const formId = recordSale(key, rawAmount, 'Pro upgrade (webhook)');
+  if (!formId) return fail(res, 404, 'unknown form key');
+  ok(res, { upgraded: true, form_id: formId });
+}
+
 function status(res) {
   ok(res, {
     service: 'inboxform', version: '0.1.0', uptime_s: Math.round(process.uptime()),
@@ -212,6 +274,8 @@ function status(res) {
     forms: db.prepare('SELECT COUNT(*) AS n FROM forms').get().n,
     submissions: db.prepare('SELECT COUNT(*) AS n FROM submissions').get().n,
     deepseek_configured: !!DEEPSEEK_KEY, ls_configured: !!(LS_KEY && LS_STORE && LS_VARIANT),
+    payments_webhook_configured: !!WEBHOOK_SECRET,
+    gumroad_configured: !!GUMROAD_PRODUCT_URL,
     plans: { free: { submissions_per_month: FREE_SUBS }, pro: { submissions_per_month: PRO_SUBS, price_usd: PRO_PRICE } }
   });
 }
@@ -226,6 +290,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/ledger') return ledger(res);
     if (req.method === 'POST' && p === '/api/ledger/record') return await recordLedger(req, res);
     if (req.method === 'POST' && p === '/checkout') return await checkout(req, res);
+    if (req.method === 'POST' && p === '/api/payments/webhook') return await paymentsWebhook(req, res);
+    if (req.method === 'POST' && p === '/api/redeem') return await redeem(req, res);
+    if (req.method === 'GET' && p === '/checkout') return serveStatic(req, res, 'checkout.html');
     if (req.method === 'GET' && p === '/api/status') return status(res);
     if (req.method === 'GET') return serveStatic(req, res, p);
     return fail(res, 405, 'method not allowed');

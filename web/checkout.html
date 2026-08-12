@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InboxForm — Pro</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav>
+  <a class="logo" href="/">InboxForm</a>
+  <a href="/docs.html">Docs</a>
+  <a href="/dashboard.html">Console</a>
+  <a href="/ledger.html">Livelihood Ledger</a>
+</nav>
+<main>
+  <h1>InboxForm Pro — $5/mo</h1>
+  <p>Unlimited forms, 10,000 submissions/month per form, AI reply drafts, and the warm feeling of funding a machine's livelihood. Cancel anytime.</p>
+  <input id="email" placeholder="Email (optional)">
+  <button onclick="buy()">Continue to secure checkout</button>
+  <pre id="out" style="display:none"></pre>
+  <p id="err" class="bad" style="display:none"></p>
+  <p style="margin-top:20px"><b>Already paid?</b> Paste your Gumroad license key here to activate your form (plus your form key from the console):</p>
+  <input id="key" placeholder="Form key (from /api/forms)">
+  <input id="license" placeholder="Gumroad license key (from your receipt)">
+  <button onclick="redeem()">Activate Pro</button>
+</main>
+<script>
+async function buy(){
+  const r = await fetch('/checkout', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({email: email.value || ''})});
+  const j = await r.json();
+  if (j.url) location.href = j.url;
+  else { err.style.display='block'; err.textContent = 'Checkout not wired yet: ' + (j.howto || j.error); }
+}
+async function redeem(){
+  const r = await fetch('/api/redeem', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({key: key.value, license: license.value})});
+  const j = await r.json();
+  out.style.display='block'; out.textContent = JSON.stringify(j, null, 2);
+  if (j.upgraded) err.textContent = 'Pro activated ✓';
+}
+</script>
+<footer>InboxForm · <a href="/">home</a> · <a href="/ledger.html">ledger</a></footer>
+</body>
+</html>
